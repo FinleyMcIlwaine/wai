@@ -25,15 +25,18 @@ main = hspec $ do
 import Control.Concurrent (
     MVar,
     forkIO,
+    getNumCapabilities,
     newEmptyMVar,
     putMVar,
+    setNumCapabilities,
     takeMVar,
     threadDelay,
     tryPutMVar,
+    yield,
  )
 import Control.Concurrent.STM (atomically)
-import Control.Exception (AssertionFailed (..), finally, throwIO)
-import Control.Monad (forM_, void)
+import Control.Exception (AssertionFailed (..), bracket_, finally, throwIO)
+import Control.Monad (forM_, replicateM_, void)
 import Data.IORef as I (
     IORef,
     atomicModifyIORef',
@@ -103,6 +106,13 @@ main = hspec $ do
             \tm label io -> forkManagedUnmaskFinally tm label (\unmask -> unmask io)
 
     describe "ThreadManager" $ do
+        it "has none left once timeout threads killed as they start are gone" $
+            withCapabilities 4 $ forM_ [1 .. 2000 :: Int] $ \_ -> do
+                tm <- newThreadManager
+                let fork = forkManagedTimeout tm defaultManager "probe" $ \_ -> yield
+                stopAfter tm (replicateM_ 50 fork >> yield) $ \_ -> return ()
+                Timeout.timeout 1_000_000 (waitUntilAllGone tm) `shouldReturn` Just ()
+
         it "fails loudly when a reservation is taken by another manager" $ do
             a <- newThreadManager
             b <- newThreadManager
@@ -369,6 +379,11 @@ ranWithin us var = do
 
 freshRef :: IO (IORef Bool)
 freshRef = I.newIORef False
+
+withCapabilities :: Int -> IO a -> IO a
+withCapabilities n io = do
+    old <- getNumCapabilities
+    bracket_ (setNumCapabilities n) (setNumCapabilities old) io
 
 refShouldBe :: IORef Bool -> Bool -> IO ()
 refShouldBe ref expected =
