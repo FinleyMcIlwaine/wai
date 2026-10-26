@@ -1,5 +1,12 @@
 # ChangeLog for time-manager
 
+## Unreleased
+
+* `forkManagedTimeout` and `forkManagedTimeoutFinally` fork with exceptions
+  masked, like the other forks. A thread killed as it started could lose
+  its cleanup, so its place was never given back and `waitUntilAllGone`
+  never returned.
+
 ## 0.5.1
 
 * A renewed timeout compared nanoseconds with microseconds, so a timeout

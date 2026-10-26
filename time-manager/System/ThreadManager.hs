@@ -349,10 +349,10 @@ forkManagedTimeoutFinally
     -- ^ Cleanup: will always run, regardless of how the thread ends
     -> IO ()
 forkManagedTimeoutFinally mgr timmgr label io final =
-    E.bracketOnError (reserveManaged mgr) (release mgr) $ \rsv ->
-        void $ forkIO $
+    E.mask_ $ E.bracketOnError (reserveManaged mgr) (release mgr) $ \rsv ->
+        void $ forkIOWithUnmask $ \unmask ->
             managed mgr rsv label final $ \(_n, ManagedThread wtid ref) ->
-                T.withHandle timmgr (lockAndKill wtid ref ex) io
+                unmask $ T.withHandle timmgr (lockAndKill wtid ref ex) io
   where
     ex = KilledByThreadManager Nothing
 
